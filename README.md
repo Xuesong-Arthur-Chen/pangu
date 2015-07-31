@@ -1,0 +1,21 @@
+# revolut-test
+A simple JSON REST API server for money transfer among test user accounts
+
+## How to build
+You need:
+* Latest stable Oracle JDK 8
+* Latest stable Apache Maven
+
+## Api Endpoints
+It runs on http://localhost:9997/
+* GET /api/balance/{userid}: get user account balance; return a json object for balance
+* GET /api/transaction/{transactionid}: get individual transaction information; return a json object of transaction info(time, form_user, to_user, amount)
+* GET /api/transactions/{userid}?startdate={startdate}&enddate={enddate}: query user's transactions; return a json array of transaction info
+* POST /api/transfer: request body should be a json object(from_user, to_user, amount); return a json object for transaction id
+
+error codes:
+* 404: requested resource not found
+* 400: bad request
+* 500: internal server error
+
+response body may include a json object showing detailed error message 
