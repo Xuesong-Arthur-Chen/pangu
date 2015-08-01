@@ -22,6 +22,6 @@ response body may include a json object showing detailed error message
 
 ## Test data
 By default 3 users are created:
-user 1 has balance 100
-user 2 has balance 200
-user 3 has balance 300
+* user 1 has balance 100
+* user 2 has balance 200
+* user 3 has balance 300
