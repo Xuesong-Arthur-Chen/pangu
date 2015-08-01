@@ -249,6 +249,11 @@ public class Api {
 				try {
 					conn.setAutoCommit(true);
 					conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+				} catch (SQLException sqle) {
+					Main.printSQLException(sqle);
+				}
+				//return conn to connection pool
+				try {
 					conn.close();
 				} catch (SQLException sqle) {
 					Main.printSQLException(sqle);
