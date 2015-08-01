@@ -97,13 +97,22 @@ public class Api {
 			@DefaultValue("2100-01-01") @QueryParam("enddate") Date endDate) {
 		List<TransactionBean> ret = new ArrayList<>();
 		try (Connection conn = Main.ds.getConnection();
-				PreparedStatement ps = conn.prepareStatement(SQL_GET_USER_TRANSACTIONS);) {
+				PreparedStatement psCheckUser = conn.prepareStatement(SQL_GET_BALANCE);
+				PreparedStatement psGetTransactions = conn.prepareStatement(SQL_GET_USER_TRANSACTIONS);) {
 
-			ps.setLong(1, userId);
-			ps.setLong(2, userId);
-			ps.setDate(3, startDate);
-			ps.setDate(4, endDate);
-			ResultSet rs = ps.executeQuery();
+			psCheckUser.setLong(1, userId);
+			ResultSet rs = psCheckUser.executeQuery();
+			if (rs == null || !rs.next()) {
+				// return not found: 404
+				throw new NotFoundException(
+						errorResponse(404, "user not found"));
+			}
+			
+			psGetTransactions.setLong(1, userId);
+			psGetTransactions.setLong(2, userId);
+			psGetTransactions.setDate(3, startDate);
+			psGetTransactions.setDate(4, endDate);
+			rs = psGetTransactions.executeQuery();
 			while (rs != null && rs.next()) {
 				ret.add(new TransactionBean(rs.getTimestamp("transaction_time"), rs.getLong("from_user"),
 						rs.getLong("to_user"), rs.getLong("amount")));
