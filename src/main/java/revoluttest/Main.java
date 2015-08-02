@@ -22,7 +22,8 @@ public class Main {
 
 	public static BasicDataSource ds = null;
 
-	private static void setupTestDb() throws SQLException, IOException {
+	private static void setupTestDb() throws SQLException, IOException, ClassNotFoundException {
+		Class.forName("org.apache.derby.jdbc.EmbeddedDriver");
 		try (Connection conn = DriverManager
 				.getConnection("jdbc:derby:revoluttest;create=true");
 				Reader init_script = new InputStreamReader(
@@ -79,8 +80,8 @@ public class Main {
 
 		} catch (SQLException sqle) {
 			printSQLException(sqle);
-		} catch (IOException ioe) {
-			System.err.println(ioe);
+		} catch (IOException | ClassNotFoundException e) {
+			System.err.println(e);
 		} finally {
 			System.out.println("\nshutting down...\n");
 

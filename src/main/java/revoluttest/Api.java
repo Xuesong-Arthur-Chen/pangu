@@ -136,7 +136,7 @@ public class Api {
 		PreparedStatement psInsertTransaction = null;
 
 		// check req
-		if (req.amount <= 0) {
+		if (req.getAmount() <= 0) {
 			// return bad request: 400
 			throw new BadRequestException(errorResponse(400,
 					"amount must be greater than 0!"));
@@ -155,43 +155,43 @@ public class Api {
 			long fromBalance, toBalance;
 
 			// check if users exist and user 'from' has enough balance
-			psGetBalance.setLong(1, req.from);
+			psGetBalance.setLong(1, req.getFrom());
 			ResultSet rs = psGetBalance.executeQuery();
 			if (rs != null && rs.next()) {
 				fromBalance = rs.getLong("balance");
 			} else {
 				// return bad request: 400
 				throw new BadRequestException(errorResponse(400, "user "
-						+ req.from + " does not exist!"));
+						+ req.getFrom() + " does not exist!"));
 			}
-			if (fromBalance < req.amount) {
+			if (fromBalance < req.getAmount()) {
 				// return bad request: 400
 				throw new BadRequestException(errorResponse(400, "user "
-						+ req.from + " does not have enough money!"));
+						+ req.getFrom() + " does not have enough money!"));
 			}
-			psGetBalance.setLong(1, req.to);
+			psGetBalance.setLong(1, req.getTo());
 			rs = psGetBalance.executeQuery();
 			if (rs != null && rs.next()) {
 				toBalance = rs.getLong("balance");
 			} else {
 				// return bad request: 400
 				throw new BadRequestException(errorResponse(400, "user "
-						+ req.to + " does not exist!"));
+						+ req.getTo() + " does not exist!"));
 			}
 
 			// update balance
-			psUpdateBalance.setLong(1, fromBalance - req.amount);
-			psUpdateBalance.setLong(2, req.from);
+			psUpdateBalance.setLong(1, fromBalance - req.getAmount());
+			psUpdateBalance.setLong(2, req.getFrom());
 			psUpdateBalance.executeUpdate();
 
-			psUpdateBalance.setLong(1, toBalance + req.amount);
-			psUpdateBalance.setLong(2, req.to);
+			psUpdateBalance.setLong(1, toBalance + req.getAmount());
+			psUpdateBalance.setLong(2, req.getTo());
 			psUpdateBalance.executeUpdate();
 
 			// insert transaction
-			psInsertTransaction.setLong(1, req.from);
-			psInsertTransaction.setLong(2, req.to);
-			psInsertTransaction.setLong(3, req.amount);
+			psInsertTransaction.setLong(1, req.getFrom());
+			psInsertTransaction.setLong(2, req.getTo());
+			psInsertTransaction.setLong(3, req.getAmount());
 			psInsertTransaction.executeUpdate();
 
 			rs = psInsertTransaction.getGeneratedKeys();

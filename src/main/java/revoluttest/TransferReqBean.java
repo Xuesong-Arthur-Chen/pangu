@@ -11,9 +11,9 @@ public class TransferReqBean {
 		this.amount = amount;
 	}
 
-	public long from;
-	public long to;
-	public long amount;
+	private long from;
+	private long to;
+	private long amount;
 	
 	public long getFrom() {
 		return from;
@@ -27,32 +27,16 @@ public class TransferReqBean {
 		return amount;
 	}
 
-	@Override
-	public int hashCode() {
-		final int prime = 31;
-		int result = 1;
-		result = prime * result + (int) (amount ^ (amount >>> 32));
-		result = prime * result + (int) (from ^ (from >>> 32));
-		result = prime * result + (int) (to ^ (to >>> 32));
-		return result;
+	public void setFrom(long from) {
+		this.from = from;
 	}
 
-	@Override
-	public boolean equals(Object obj) {
-		if (this == obj)
-			return true;
-		if (obj == null)
-			return false;
-		if (getClass() != obj.getClass())
-			return false;
-		TransferReqBean other = (TransferReqBean) obj;
-		if (amount != other.amount)
-			return false;
-		if (from != other.from)
-			return false;
-		if (to != other.to)
-			return false;
-		return true;
+	public void setTo(long to) {
+		this.to = to;
+	}
+
+	public void setAmount(long amount) {
+		this.amount = amount;
 	}
 
 }
