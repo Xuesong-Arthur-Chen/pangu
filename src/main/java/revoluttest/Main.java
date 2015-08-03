@@ -22,42 +22,33 @@ public class Main {
 
 	public static BasicDataSource ds = null;
 
-	private static void setupTestDb() throws SQLException, IOException, ClassNotFoundException {
-		Class.forName("org.apache.derby.jdbc.EmbeddedDriver");
+	private static void setupTestDb() throws SQLException, IOException,
+			ClassNotFoundException {
+		Class.forName("org.h2.Driver");
 		try (Connection conn = DriverManager
-				.getConnection("jdbc:derby:revoluttest;create=true");
+				.getConnection("jdbc:h2:mem:revoluttest;DB_CLOSE_DELAY=-1;MVCC=TRUE");
 				Reader init_script = new InputStreamReader(
 						Main.class.getResourceAsStream("/db_init.sql"));
 				Reader test_data_script = new InputStreamReader(
 						Main.class.getResourceAsStream("/db_test_data.sql"));) {
-			ScriptRunner runner = new ScriptRunner(conn, false, false);
-			try {
-				runner.runScript(init_script);
-			} catch(SQLException sqle) {
-				printSQLException(sqle);
-			}
-			try {
-				runner.runScript(test_data_script);
-			} catch(SQLException sqle) {
-				printSQLException(sqle);
-			}
 			
+			ScriptRunner runner = new ScriptRunner(conn, false, false);
+
+			runner.runScript(init_script);
+			runner.runScript(test_data_script);
+
 		}
 	}
 
 	private static void shutdownTestDb() {
-		try {
-			DriverManager.getConnection("jdbc:derby:revoluttest;shutdown=true");
-		} catch (SQLException sqle) {
-			// database shutdown properly
-		}
+
 	}
 
 	private static BasicDataSource setupDataSource() {
 
 		BasicDataSource ds = new BasicDataSource();
-		// ds.setDriverClassName("org.apache.derby.jdbc.EmbeddedDriver");
-		ds.setUrl("jdbc:derby:revoluttest");
+		ds.setDriverClassName("org.h2.Driver");
+		ds.setUrl("jdbc:h2:mem:revoluttest;DB_CLOSE_DELAY=-1;MVCC=TRUE");
 		ds.setDefaultTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
 		ds.setDefaultAutoCommit(true);
 		ds.setPoolPreparedStatements(true);

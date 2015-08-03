@@ -29,6 +29,7 @@ import javax.ws.rs.core.Response;
 public class Api {
 
 	public static final String SQL_GET_BALANCE = "select balance from users where user_id=?";
+	public static final String SQL_GET_BALANCE_FOR_UPDATE = "select balance from users where user_id=? for update";
 	public static final String SQL_UPDATE_BALANCE = "update users set balance=? where user_id=?";
 	public static final String SQL_INSERT_TRANSACTION = "insert into transactions(transaction_time, from_user, to_user, amount) values(CURRENT_TIMESTAMP, ?, ?, ?)";
 	public static final String SQL_GET_TRANSACTION = "select transaction_time, from_user, to_user, amount from transactions where transaction_id=?";
@@ -151,31 +152,60 @@ public class Api {
 		return ret;
 	}
 
-	private void updateBalance(PreparedStatement psGetBalance,
-			PreparedStatement psUpdateBalance, long userId, long amount)
+	private void updateBalance(Connection conn, long userId, long amount)
 			throws SQLException {
 		long balance;
-		psGetBalance.setLong(1, userId);
-		ResultSet rs = psGetBalance.executeQuery();
-		if (rs != null && rs.next()) {
-			balance = rs.getLong("balance");
-		} else {
-			// return bad request: 400
-			throw new BadRequestException(errorResponse(400, "user " + userId
-					+ " does not exist!"));
+		try (PreparedStatement psGetBalance = conn
+				.prepareStatement(SQL_GET_BALANCE_FOR_UPDATE);
+				PreparedStatement psUpdateBalance = conn
+						.prepareStatement(SQL_UPDATE_BALANCE);) {
+
+			psGetBalance.setLong(1, userId);
+			ResultSet rs = psGetBalance.executeQuery();
+			if (rs != null && rs.next()) {
+				balance = rs.getLong("balance");
+			} else {
+				// return bad request: 400
+				throw new BadRequestException(errorResponse(400, "user "
+						+ userId + " does not exist!"));
+			}
+
+			balance += amount;
+			// check if user has enough balance
+			if (balance < 0) {
+				// return bad request: 400
+				throw new BadRequestException(errorResponse(400, "user "
+						+ userId + " does not have enough money!"));
+			}
+
+			psUpdateBalance.setLong(1, balance);
+			psUpdateBalance.setLong(2, userId);
+			psUpdateBalance.executeUpdate();
 		}
-		
-		balance += amount;
-		// check if user has enough balance
-		if (balance < 0) {
-			// return bad request: 400
-			throw new BadRequestException(errorResponse(400, "user " + userId
-					+ " does not have enough money!"));
+
+	}
+
+	private long insertTransaction(Connection conn, TransferReqBean req)
+			throws SQLException {
+		try (PreparedStatement psInsertTransaction = conn
+				.prepareStatement(SQL_INSERT_TRANSACTION,
+						PreparedStatement.RETURN_GENERATED_KEYS);) {
+
+			psInsertTransaction.setLong(1, req.getFrom());
+			psInsertTransaction.setLong(2, req.getTo());
+			psInsertTransaction.setLong(3, req.getAmount());
+			psInsertTransaction.executeUpdate();
+
+			ResultSet rs = psInsertTransaction.getGeneratedKeys();
+			if (rs != null && rs.next()) {
+				return rs.getLong(1);
+			} else {
+				System.err.println("\nERROR: can not get transaction id\n");
+				// return server error: 500
+				throw new InternalServerErrorException();
+			}
 		}
-		
-		psUpdateBalance.setLong(1, balance);
-		psUpdateBalance.setLong(2, userId);
-		psUpdateBalance.executeUpdate();
+
 	}
 
 	@POST
@@ -199,101 +229,47 @@ public class Api {
 
 		long transactionId;
 
-		Connection conn = null;
-		PreparedStatement psGetBalance = null;
-		PreparedStatement psUpdateBalance = null;
-		PreparedStatement psInsertTransaction = null;
+		try (Connection conn = Main.ds.getConnection();) {
 
-		try {
-			conn = Main.ds.getConnection();
-			conn.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
-			conn.setAutoCommit(false);
+			try {
+				//conn.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+				conn.setAutoCommit(false);
 
-			psGetBalance = conn.prepareStatement(SQL_GET_BALANCE);
-			psUpdateBalance = conn.prepareStatement(SQL_UPDATE_BALANCE);
-			psInsertTransaction = conn.prepareStatement(SQL_INSERT_TRANSACTION,
-					PreparedStatement.RETURN_GENERATED_KEYS);
-
-			//avoid database deadlock
-			if (req.getFrom() < req.getTo()) {
-				updateBalance(psGetBalance, psUpdateBalance, req.getFrom(), -req.getAmount());
-				updateBalance(psGetBalance, psUpdateBalance, req.getTo(), req.getAmount());
-			} else {				
-				updateBalance(psGetBalance, psUpdateBalance, req.getTo(), req.getAmount());
-				updateBalance(psGetBalance, psUpdateBalance, req.getFrom(), -req.getAmount());
-			}			
-
-			// insert transaction
-			psInsertTransaction.setLong(1, req.getFrom());
-			psInsertTransaction.setLong(2, req.getTo());
-			psInsertTransaction.setLong(3, req.getAmount());
-			psInsertTransaction.executeUpdate();
-
-			ResultSet rs = psInsertTransaction.getGeneratedKeys();
-			if (rs != null && rs.next()) {
-				transactionId = rs.getLong(1);
-			} else {
-				System.err.println("\nERROR: can not get transaction id\n");
-				// return server error: 500
-				throw new InternalServerErrorException();
-			}
-
-			conn.commit();
-
-		} catch (SQLException | WebApplicationException e) {
-
-			if (conn != null) {
-				try {
-					conn.rollback();
-				} catch (SQLException sqle) {
-					Main.printSQLException(sqle);
+				// avoid database deadlock
+				if (req.getFrom() < req.getTo()) {
+					updateBalance(conn, req.getFrom(), -req.getAmount());
+					updateBalance(conn, req.getTo(), req.getAmount());
+				} else {
+					updateBalance(conn, req.getTo(), req.getAmount());
+					updateBalance(conn, req.getFrom(), -req.getAmount());
 				}
+				transactionId = insertTransaction(conn, req);
+
+				conn.commit();
+			} catch (SQLException | WebApplicationException e) {
+
+				if (conn != null) {
+					try {
+						conn.rollback();
+					} catch (SQLException sqle) {
+						Main.printSQLException(sqle);
+					}
+				}
+
+				if (e instanceof SQLException) {
+					Main.printSQLException((SQLException) e);
+					// return server error: 500
+					throw new InternalServerErrorException();
+				} else {
+					throw (WebApplicationException) e;
+				}
+
 			}
 
-			if (e instanceof SQLException) {
-				Main.printSQLException((SQLException) e);
-				// return server error: 500
-				throw new InternalServerErrorException();
-			} else {
-				throw (WebApplicationException) e;
-			}
-
-		} finally {
-			if (psGetBalance != null) {
-				try {
-					psGetBalance.close();
-				} catch (SQLException sqle) {
-					Main.printSQLException(sqle);
-				}
-			}
-			if (psUpdateBalance != null) {
-				try {
-					psUpdateBalance.close();
-				} catch (SQLException sqle) {
-					Main.printSQLException(sqle);
-				}
-			}
-			if (psInsertTransaction != null) {
-				try {
-					psInsertTransaction.close();
-				} catch (SQLException sqle) {
-					Main.printSQLException(sqle);
-				}
-			}
-			if (conn != null) {
-				try {
-					conn.setAutoCommit(true);
-					conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
-				} catch (SQLException sqle) {
-					Main.printSQLException(sqle);
-				}
-				// return conn to connection pool
-				try {
-					conn.close();
-				} catch (SQLException sqle) {
-					Main.printSQLException(sqle);
-				}
-			}
+		} catch (SQLException sqle) {
+			Main.printSQLException(sqle);
+			// return server error: 500
+			throw new InternalServerErrorException();
 		}
 
 		return new TransactionIdBean(transactionId);

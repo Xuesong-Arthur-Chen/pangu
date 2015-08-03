@@ -111,8 +111,8 @@ public class MainIT {
 		
 		for(int i=0; i<15; i++) {
 			int j = i%3;
-			//executor.submit(new Task(new TransferReqBean(j+1, (j+1)%3+1, i+1)));
-			transfer(new TransferReqBean(j+1, (j+1)%3+1, i+1));
+			executor.submit(new Task(new TransferReqBean(j+1, (j+1)%3+1, i+1)));
+			//transfer(new TransferReqBean(j+1, (j+1)%3+1, i+1));
 		}
 		
 		executor.shutdown();
