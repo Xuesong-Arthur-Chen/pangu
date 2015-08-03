@@ -32,10 +32,9 @@ public class Api {
 	public static final String SQL_UPDATE_BALANCE = "update users set balance=? where user_id=?";
 	public static final String SQL_INSERT_TRANSACTION = "insert into transactions(transaction_time, from_user, to_user, amount) values(CURRENT_TIMESTAMP, ?, ?, ?)";
 	public static final String SQL_GET_TRANSACTION = "select transaction_time, from_user, to_user, amount from transactions where transaction_id=?";
-	public static final String SQL_GET_USER_TRANSACTIONS = 
-			"select transaction_time, from_user, to_user, amount from transactions where (from_user=? or to_user=?) and "
+	public static final String SQL_GET_USER_TRANSACTIONS = "select transaction_time, from_user, to_user, amount from transactions where (from_user=? or to_user=?) and "
 			+ "DATE(transaction_time)>=? and DATE(transaction_time)<=?";
-	
+
 	private Response errorResponse(int httpCode, String msg) {
 		return Response.status(httpCode).entity("{\"error\": \"" + msg + "\"}")
 				.type(MediaType.APPLICATION_JSON).build();
@@ -44,6 +43,12 @@ public class Api {
 	@GET
 	@Path("balance/{userid}")
 	public BalanceBean balance(@PathParam("userid") long userId) {
+		// check req
+		if (userId <= 0) {
+			// return bad request: 400
+			throw new BadRequestException(errorResponse(400, "invalid user id"));
+		}
+
 		long balance;
 		try (Connection conn = Main.ds.getConnection();
 				PreparedStatement ps = conn.prepareStatement(SQL_GET_BALANCE);) {
@@ -64,23 +69,33 @@ public class Api {
 		}
 		return new BalanceBean(balance);
 	}
-	
+
 	@GET
 	@Path("transaction/{transactionid}")
-	public TransactionBean transaction(@PathParam("transactionid") long transactionId) {
+	public TransactionBean transaction(
+			@PathParam("transactionid") long transactionId) {
+		// check req
+		if (transactionId <= 0) {
+			// return bad request: 400
+			throw new BadRequestException(errorResponse(400,
+					"invalid transaction id"));
+		}
+
 		TransactionBean ret = null;
 		try (Connection conn = Main.ds.getConnection();
-				PreparedStatement ps = conn.prepareStatement(SQL_GET_TRANSACTION);) {
+				PreparedStatement ps = conn
+						.prepareStatement(SQL_GET_TRANSACTION);) {
 
 			ps.setLong(1, transactionId);
 			ResultSet rs = ps.executeQuery();
 			if (rs != null && rs.next()) {
-				ret = new TransactionBean(rs.getTimestamp("transaction_time"), rs.getLong("from_user"),
-						rs.getLong("to_user"), rs.getLong("amount"));
+				ret = new TransactionBean(rs.getTimestamp("transaction_time"),
+						rs.getLong("from_user"), rs.getLong("to_user"),
+						rs.getLong("amount"));
 			} else {
 				// return not found: 404
-				throw new NotFoundException(
-						errorResponse(404, "transaction not found"));
+				throw new NotFoundException(errorResponse(404,
+						"transaction not found"));
 			}
 		} catch (SQLException sqle) {
 			Main.printSQLException(sqle);
@@ -89,16 +104,25 @@ public class Api {
 		}
 		return ret;
 	}
-	
+
 	@GET
 	@Path("transactions/{userid}")
-	public List<TransactionBean> transactions(@PathParam("userid") long userId,
+	public List<TransactionBean> transactions(
+			@PathParam("userid") long userId,
 			@DefaultValue("1970-01-01") @QueryParam("startdate") Date startDate,
 			@DefaultValue("2100-01-01") @QueryParam("enddate") Date endDate) {
+		// check req
+		if (userId <= 0) {
+			// return bad request: 400
+			throw new BadRequestException(errorResponse(400, "invalid user id"));
+		}
+
 		List<TransactionBean> ret = new ArrayList<>();
 		try (Connection conn = Main.ds.getConnection();
-				PreparedStatement psCheckUser = conn.prepareStatement(SQL_GET_BALANCE);
-				PreparedStatement psGetTransactions = conn.prepareStatement(SQL_GET_USER_TRANSACTIONS);) {
+				PreparedStatement psCheckUser = conn
+						.prepareStatement(SQL_GET_BALANCE);
+				PreparedStatement psGetTransactions = conn
+						.prepareStatement(SQL_GET_USER_TRANSACTIONS);) {
 
 			psCheckUser.setLong(1, userId);
 			ResultSet rs = psCheckUser.executeQuery();
@@ -107,15 +131,17 @@ public class Api {
 				throw new NotFoundException(
 						errorResponse(404, "user not found"));
 			}
-			
+
 			psGetTransactions.setLong(1, userId);
 			psGetTransactions.setLong(2, userId);
 			psGetTransactions.setDate(3, startDate);
 			psGetTransactions.setDate(4, endDate);
 			rs = psGetTransactions.executeQuery();
 			while (rs != null && rs.next()) {
-				ret.add(new TransactionBean(rs.getTimestamp("transaction_time"), rs.getLong("from_user"),
-						rs.getLong("to_user"), rs.getLong("amount")));
+				ret.add(new TransactionBean(
+						rs.getTimestamp("transaction_time"), rs
+								.getLong("from_user"), rs.getLong("to_user"),
+						rs.getLong("amount")));
 			}
 		} catch (SQLException sqle) {
 			Main.printSQLException(sqle);
@@ -125,22 +151,58 @@ public class Api {
 		return ret;
 	}
 
+	private void updateBalance(PreparedStatement psGetBalance,
+			PreparedStatement psUpdateBalance, long userId, long amount)
+			throws SQLException {
+		long balance;
+		psGetBalance.setLong(1, userId);
+		ResultSet rs = psGetBalance.executeQuery();
+		if (rs != null && rs.next()) {
+			balance = rs.getLong("balance");
+		} else {
+			// return bad request: 400
+			throw new BadRequestException(errorResponse(400, "user " + userId
+					+ " does not exist!"));
+		}
+		
+		balance += amount;
+		// check if user has enough balance
+		if (balance < 0) {
+			// return bad request: 400
+			throw new BadRequestException(errorResponse(400, "user " + userId
+					+ " does not have enough money!"));
+		}
+		
+		psUpdateBalance.setLong(1, balance);
+		psUpdateBalance.setLong(2, userId);
+		psUpdateBalance.executeUpdate();
+	}
+
 	@POST
 	@Path("transfer")
 	public TransactionIdBean transfer(TransferReqBean req) {
-		long transactionId;
-
-		Connection conn = null;
-		PreparedStatement psGetBalance = null;
-		PreparedStatement psUpdateBalance = null;
-		PreparedStatement psInsertTransaction = null;
-
 		// check req
 		if (req.getAmount() <= 0) {
 			// return bad request: 400
 			throw new BadRequestException(errorResponse(400,
 					"amount must be greater than 0!"));
 		}
+		if (req.getFrom() <= 0 || req.getTo() <= 0) {
+			// return bad request: 400
+			throw new BadRequestException(errorResponse(400, "invalid user id"));
+		}
+		if (req.getFrom() == req.getTo()) {
+			// return bad request: 400
+			throw new BadRequestException(errorResponse(400,
+					"sender and receiver must be different users!"));
+		}
+
+		long transactionId;
+
+		Connection conn = null;
+		PreparedStatement psGetBalance = null;
+		PreparedStatement psUpdateBalance = null;
+		PreparedStatement psInsertTransaction = null;
 
 		try {
 			conn = Main.ds.getConnection();
@@ -152,41 +214,14 @@ public class Api {
 			psInsertTransaction = conn.prepareStatement(SQL_INSERT_TRANSACTION,
 					PreparedStatement.RETURN_GENERATED_KEYS);
 
-			long fromBalance, toBalance;
-
-			// check if users exist and user 'from' has enough balance
-			psGetBalance.setLong(1, req.getFrom());
-			ResultSet rs = psGetBalance.executeQuery();
-			if (rs != null && rs.next()) {
-				fromBalance = rs.getLong("balance");
-			} else {
-				// return bad request: 400
-				throw new BadRequestException(errorResponse(400, "user "
-						+ req.getFrom() + " does not exist!"));
-			}
-			if (fromBalance < req.getAmount()) {
-				// return bad request: 400
-				throw new BadRequestException(errorResponse(400, "user "
-						+ req.getFrom() + " does not have enough money!"));
-			}
-			psGetBalance.setLong(1, req.getTo());
-			rs = psGetBalance.executeQuery();
-			if (rs != null && rs.next()) {
-				toBalance = rs.getLong("balance");
-			} else {
-				// return bad request: 400
-				throw new BadRequestException(errorResponse(400, "user "
-						+ req.getTo() + " does not exist!"));
-			}
-
-			// update balance
-			psUpdateBalance.setLong(1, fromBalance - req.getAmount());
-			psUpdateBalance.setLong(2, req.getFrom());
-			psUpdateBalance.executeUpdate();
-
-			psUpdateBalance.setLong(1, toBalance + req.getAmount());
-			psUpdateBalance.setLong(2, req.getTo());
-			psUpdateBalance.executeUpdate();
+			//avoid database deadlock
+			if (req.getFrom() < req.getTo()) {
+				updateBalance(psGetBalance, psUpdateBalance, req.getFrom(), -req.getAmount());
+				updateBalance(psGetBalance, psUpdateBalance, req.getTo(), req.getAmount());
+			} else {				
+				updateBalance(psGetBalance, psUpdateBalance, req.getTo(), req.getAmount());
+				updateBalance(psGetBalance, psUpdateBalance, req.getFrom(), -req.getAmount());
+			}			
 
 			// insert transaction
 			psInsertTransaction.setLong(1, req.getFrom());
@@ -194,7 +229,7 @@ public class Api {
 			psInsertTransaction.setLong(3, req.getAmount());
 			psInsertTransaction.executeUpdate();
 
-			rs = psInsertTransaction.getGeneratedKeys();
+			ResultSet rs = psInsertTransaction.getGeneratedKeys();
 			if (rs != null && rs.next()) {
 				transactionId = rs.getLong(1);
 			} else {
@@ -252,7 +287,7 @@ public class Api {
 				} catch (SQLException sqle) {
 					Main.printSQLException(sqle);
 				}
-				//return conn to connection pool
+				// return conn to connection pool
 				try {
 					conn.close();
 				} catch (SQLException sqle) {
@@ -263,5 +298,4 @@ public class Api {
 
 		return new TransactionIdBean(transactionId);
 	}
-
 }

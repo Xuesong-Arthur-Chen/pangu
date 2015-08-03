@@ -31,8 +31,17 @@ public class Main {
 				Reader test_data_script = new InputStreamReader(
 						Main.class.getResourceAsStream("/db_test_data.sql"));) {
 			ScriptRunner runner = new ScriptRunner(conn, false, false);
-			runner.runScript(init_script);
-			runner.runScript(test_data_script);
+			try {
+				runner.runScript(init_script);
+			} catch(SQLException sqle) {
+				printSQLException(sqle);
+			}
+			try {
+				runner.runScript(test_data_script);
+			} catch(SQLException sqle) {
+				printSQLException(sqle);
+			}
+			
 		}
 	}
 
