@@ -30,3 +30,9 @@ bin/
 
 # JVM crash logs
 hs_err_pid*.log
+
+# any log
+*.log
+
+# maven shade plugin output
+dependency-reduced-pom.xml
