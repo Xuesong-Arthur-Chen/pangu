@@ -1,4 +1,4 @@
-package revoluttest;
+package pinetree.rest;
 
 public class TransactionIdBean {	
 

@@ -1,4 +1,4 @@
-package revoluttest;
+package pinetree.rest;
 
 import java.sql.Connection;
 import java.sql.Date;
@@ -22,6 +22,7 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import pinetree.Main;
 
 @Path("api")
 @Produces(MediaType.APPLICATION_JSON)
@@ -51,7 +52,7 @@ public class Api {
 		}
 
 		long balance;
-		try (Connection conn = Main.ds.getConnection();
+		try (Connection conn = Main.dataSource.getConnection();
 				PreparedStatement ps = conn.prepareStatement(SQL_GET_BALANCE);) {
 
 			ps.setLong(1, userId);
@@ -83,7 +84,7 @@ public class Api {
 		}
 
 		TransactionBean ret = null;
-		try (Connection conn = Main.ds.getConnection();
+		try (Connection conn = Main.dataSource.getConnection();
 				PreparedStatement ps = conn
 						.prepareStatement(SQL_GET_TRANSACTION);) {
 
@@ -119,7 +120,7 @@ public class Api {
 		}
 
 		List<TransactionBean> ret = new ArrayList<>();
-		try (Connection conn = Main.ds.getConnection();
+		try (Connection conn = Main.dataSource.getConnection();
 				PreparedStatement psCheckUser = conn
 						.prepareStatement(SQL_GET_BALANCE);
 				PreparedStatement psGetTransactions = conn
@@ -229,7 +230,7 @@ public class Api {
 
 		long transactionId;
 
-		try (Connection conn = Main.ds.getConnection();) {
+		try (Connection conn = Main.dataSource.getConnection();) {
 
 			try {
 				//conn.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
