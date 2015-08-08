@@ -1,6 +1,6 @@
-package pinetree;
+package pinetree.pangu;
 
-import pinetree.rest.Api;
+import pinetree.pangu.rest.Api;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
@@ -23,17 +23,19 @@ public class Main {
 
     public static BasicDataSource dataSource = null;
 
+    public static final String dbDriver = "org.hsqldb.jdbc.JDBCDriver";
+    public static final String dbConnStr = "jdbc:hsqldb:mem:testdb;hsqldb.tx=mvcc";
+
     private static void setupTestDb() throws SQLException, IOException,
             ClassNotFoundException {
-        Class.forName("org.h2.Driver");
-        try (Connection conn = DriverManager
-                .getConnection("jdbc:h2:mem:revoluttest;DB_CLOSE_DELAY=-1;MVCC=TRUE");
+        Class.forName(dbDriver);
+        try (Connection conn = DriverManager.getConnection(dbConnStr);
                 Reader init_script = new InputStreamReader(
                         Main.class.getResourceAsStream("/db_init.sql"));
                 Reader test_data_script = new InputStreamReader(
                         Main.class.getResourceAsStream("/db_test_data.sql"));) {
 
-            ScriptRunner runner = new ScriptRunner(conn, false, false);
+            ScriptRunner runner = new ScriptRunner(conn, false, true);
 
             runner.runScript(init_script);
             runner.runScript(test_data_script);
@@ -42,14 +44,20 @@ public class Main {
     }
 
     private static void shutdownTestDb() {
-
+        try {
+            DriverManager.getConnection(dbConnStr + ";shutdown=true");
+        } catch (SQLException sqle) {
+            printSQLException(sqle);
+        }
     }
 
-    private static BasicDataSource setupDataSource() {
+    private static BasicDataSource setupDataSource() throws ClassNotFoundException {
 
         BasicDataSource ds = new BasicDataSource();
-        ds.setDriverClassName("org.h2.Driver");
-        ds.setUrl("jdbc:h2:mem:revoluttest;DB_CLOSE_DELAY=-1;MVCC=TRUE");
+
+        ds.setDriverClassName(dbDriver);
+        ds.setUrl(dbConnStr);
+
         ds.setDefaultTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
         ds.setDefaultAutoCommit(true);
         ds.setPoolPreparedStatements(true);
@@ -57,11 +65,31 @@ public class Main {
         return ds;
     }
 
+    private static void closeDataSource(BasicDataSource ds) {
+        if (ds != null) {
+            try {
+                ds.close();
+            } catch (SQLException sqle) {
+                printSQLException(sqle);
+            }
+        }
+    }
+
     private static HttpServer startWebServer() {
         URI baseUri = UriBuilder.fromUri("http://localhost/").port(9997)
                 .build();
         ResourceConfig config = new ResourceConfig(Api.class);
         return GrizzlyHttpServerFactory.createHttpServer(baseUri, config);
+    }
+
+    private static void shutdownWebServer(HttpServer hs) {
+        if (hs != null) {
+            try {
+                hs.shutdown().get();
+            } catch (InterruptedException | ExecutionException ex) {
+                hs.shutdownNow();
+            }
+        }
     }
 
     public static void main(String[] args) throws InterruptedException, ExecutionException {
@@ -86,16 +114,8 @@ public class Main {
         } finally {
             System.out.println("\nshutting down...\n");
 
-            if (server != null) {
-                server.shutdown().get();
-            }
-            if (dataSource != null) {
-                try {
-                    dataSource.close();
-                } catch (SQLException sqle) {
-                    printSQLException(sqle);
-                }
-            }
+            shutdownWebServer(server);
+            closeDataSource(dataSource);
             shutdownTestDb();
 
             System.out.println("\nshut down successfully\n");
@@ -104,13 +124,13 @@ public class Main {
     }
 
     public static void printSQLException(SQLException e) {
-	// Unwraps the entire exception chain to unveil the real cause of the Exception.
+        // Unwraps the entire exception chain to unveil the real cause of the Exception.
         while (e != null) {
             System.err.println("\n----- SQLException -----");
             System.err.println("  SQL State:  " + e.getSQLState());
             System.err.println("  Error Code: " + e.getErrorCode());
             System.err.println("  Message:    " + e.getMessage());
-	    // for stack traces, refer to derby.log or uncomment this:
+            // for stack traces, refer to derby.log or uncomment this:
             // e.printStackTrace(System.err);
             e = e.getNextException();
         }

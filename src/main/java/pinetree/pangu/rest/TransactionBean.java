@@ -1,20 +1,28 @@
-package pinetree.rest;
+package pinetree.pangu.rest;
 
-public class TransferReqBean {
+import java.sql.Timestamp;
 
-	public TransferReqBean() {
+public class TransactionBean {
+
+	public TransactionBean() {
 	}
 	
-	public TransferReqBean(long from, long to, long amount) {
+	public TransactionBean(Timestamp timestamp, long from, long to, long amount) {
+		this.timestamp = timestamp;
 		this.from = from;
 		this.to = to;
 		this.amount = amount;
 	}
 
+	private Timestamp timestamp;
 	private long from;
 	private long to;
 	private long amount;
 	
+	public Timestamp getTimestamp() {
+		return timestamp;
+	}
+
 	public long getFrom() {
 		return from;
 	}
@@ -25,6 +33,10 @@ public class TransferReqBean {
 
 	public long getAmount() {
 		return amount;
+	}
+
+	public void setTimestamp(Timestamp timestamp) {
+		this.timestamp = timestamp;
 	}
 
 	public void setFrom(long from) {
@@ -38,5 +50,4 @@ public class TransferReqBean {
 	public void setAmount(long amount) {
 		this.amount = amount;
 	}
-
 }

@@ -1,4 +1,4 @@
-package pinetree.rest;
+package pinetree.pangu.rest;
 
 public class BalanceBean {
 	

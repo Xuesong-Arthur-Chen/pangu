@@ -1,12 +1,12 @@
 /**
  *
  */
-package pinetree;
+package pinetree.pangu;
 
-import pinetree.rest.BalanceBean;
-import pinetree.rest.TransferReqBean;
-import pinetree.rest.TransactionIdBean;
-import pinetree.rest.TransactionBean;
+import pinetree.pangu.rest.BalanceBean;
+import pinetree.pangu.rest.TransferReqBean;
+import pinetree.pangu.rest.TransactionIdBean;
+import pinetree.pangu.rest.TransactionBean;
 import static org.junit.Assert.assertEquals;
 
 import java.io.File;
@@ -120,8 +120,7 @@ public class MainIT {
 
         for (int i = 0; i < 15; i++) {
             int j = i % 3;
-            executor.submit(new Task(new TransferReqBean(j + 1, (j + 1) % 3 + 1, i + 1)));
-            //transfer(new TransferReqBean(j+1, (j+1)%3+1, i+1));
+            executor.submit(new Task(new TransferReqBean(j + 1, (j + 1) % 3 + 1, i + 1)));            
         }
 
         executor.shutdown();
