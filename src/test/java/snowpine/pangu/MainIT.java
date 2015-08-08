@@ -1,12 +1,12 @@
 /**
  *
  */
-package pinetree.pangu;
+package snowpine.pangu;
 
-import pinetree.pangu.rest.BalanceBean;
-import pinetree.pangu.rest.TransferReqBean;
-import pinetree.pangu.rest.TransactionIdBean;
-import pinetree.pangu.rest.TransactionBean;
+import snowpine.pangu.rest.BalanceBean;
+import snowpine.pangu.rest.TransferReqBean;
+import snowpine.pangu.rest.TransactionIdBean;
+import snowpine.pangu.rest.TransactionBean;
 import static org.junit.Assert.assertEquals;
 
 import java.io.File;
@@ -45,7 +45,7 @@ public class MainIT {
     public static void setUpBeforeClass() throws Exception {
         System.out.println("starting REST API server...\n");
         ProcessBuilder pb = new ProcessBuilder("java", "-jar",
-                "./target/pine-tree-1.0.0.jar");
+                "./target/pangu-1.0.0.jar");
         pb.redirectError(new File("./error.log"));
         pb.redirectOutput(new File("./output.log"));
         server = pb.start();

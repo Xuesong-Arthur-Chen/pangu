@@ -1,4 +1,4 @@
-package pinetree.pangu.rest;
+package snowpine.pangu.rest;
 
 import java.sql.Connection;
 import java.sql.Date;
@@ -22,7 +22,7 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import pinetree.pangu.Main;
+import snowpine.pangu.Main;
 
 @Path("api")
 @Produces(MediaType.APPLICATION_JSON)

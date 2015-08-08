@@ -1,6 +1,6 @@
-package pinetree.pangu;
+package snowpine.pangu;
 
-import pinetree.pangu.rest.Api;
+import snowpine.pangu.rest.Api;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
