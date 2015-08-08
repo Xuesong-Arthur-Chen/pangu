@@ -1,4 +1,4 @@
-# revolut-test
+# pangu
 A simple JSON REST API server for money transfer among test user accounts
 
 ## How to build
