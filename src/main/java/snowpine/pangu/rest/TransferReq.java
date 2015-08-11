@@ -1,11 +1,11 @@
 package snowpine.pangu.rest;
 
-public class TransferReqBean {
+public class TransferReq {
 
-	public TransferReqBean() {
+	public TransferReq() {
 	}
 	
-	public TransferReqBean(long from, long to, long amount) {
+	public TransferReq(long from, long to, long amount) {
 		this.from = from;
 		this.to = to;
 		this.amount = amount;

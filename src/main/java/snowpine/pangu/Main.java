@@ -18,13 +18,15 @@ import com.ibatis.common.jdbc.ScriptRunner;
 import java.util.concurrent.ExecutionException;
 import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.jersey.grizzly2.httpserver.GrizzlyHttpServerFactory;
+import snowpine.pangu.dao.DAOObjs;
+import snowpine.pangu.dao.DAOWrapperException;
+import snowpine.pangu.dao.TransactionDAOJdbcImpl;
+import snowpine.pangu.dao.UserDAOJdbcImpl;
 
 public class Main {
 
-    public static BasicDataSource dataSource = null;
-
-    public static final String dbDriver = "org.hsqldb.jdbc.JDBCDriver";
-    public static final String dbConnStr = "jdbc:hsqldb:mem:testdb;hsqldb.tx=mvcc";
+    private static final String dbDriver = "org.hsqldb.jdbc.JDBCDriver";
+    private static final String dbConnStr = "jdbc:hsqldb:mem:testdb;hsqldb.tx=mvcc";
 
     private static void setupTestDb() throws SQLException, IOException,
             ClassNotFoundException {
@@ -47,7 +49,7 @@ public class Main {
         try {
             DriverManager.getConnection(dbConnStr + ";shutdown=true");
         } catch (SQLException sqle) {
-            printSQLException(sqle);
+            DAOWrapperException.printSQLException(sqle);
         }
     }
 
@@ -70,7 +72,7 @@ public class Main {
             try {
                 ds.close();
             } catch (SQLException sqle) {
-                printSQLException(sqle);
+                DAOWrapperException.printSQLException(sqle);
             }
         }
     }
@@ -95,12 +97,15 @@ public class Main {
     public static void main(String[] args) throws InterruptedException, ExecutionException {
 
         HttpServer server = null;
+        BasicDataSource dataSource = null;
 
         try {
             System.out.println("Starting...\n");
 
             setupTestDb();
             dataSource = setupDataSource();
+            DAOObjs.userDAO = new UserDAOJdbcImpl(dataSource);
+            DAOObjs.transactionDAO = new TransactionDAOJdbcImpl(dataSource, DAOObjs.userDAO);
             server = startWebServer();
 
             System.out.println("\nStarted Successfully!\n");
@@ -108,7 +113,7 @@ public class Main {
             System.in.read();
 
         } catch (SQLException sqle) {
-            printSQLException(sqle);
+            DAOWrapperException.printSQLException(sqle);
         } catch (IOException | ClassNotFoundException e) {
             System.err.println(e);
         } finally {
@@ -120,20 +125,5 @@ public class Main {
 
             System.out.println("\nshut down successfully\n");
         }
-
     }
-
-    public static void printSQLException(SQLException e) {
-        // Unwraps the entire exception chain to unveil the real cause of the Exception.
-        while (e != null) {
-            System.err.println("\n----- SQLException -----");
-            System.err.println("  SQL State:  " + e.getSQLState());
-            System.err.println("  Error Code: " + e.getErrorCode());
-            System.err.println("  Message:    " + e.getMessage());
-            // for stack traces, refer to derby.log or uncomment this:
-            // e.printStackTrace(System.err);
-            e = e.getNextException();
-        }
-    }
-
 }

@@ -3,10 +3,8 @@
  */
 package snowpine.pangu;
 
-import snowpine.pangu.rest.BalanceBean;
-import snowpine.pangu.rest.TransferReqBean;
-import snowpine.pangu.rest.TransactionIdBean;
-import snowpine.pangu.rest.TransactionBean;
+import snowpine.pangu.rest.TransferReq;
+import snowpine.pangu.rest.TransferRes;
 import static org.junit.Assert.assertEquals;
 
 import java.io.File;
@@ -28,6 +26,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import snowpine.pangu.dao.Transaction;
+import snowpine.pangu.dao.User;
 
 /**
  * @author xuesong
@@ -35,7 +35,7 @@ import org.junit.Test;
  */
 public class MainIT {
 
-    private static Client client = ClientBuilder.newClient();
+    private static final Client client = ClientBuilder.newClient();
     private static Process server;
 
     /**
@@ -89,30 +89,31 @@ public class MainIT {
         testGetBalance(3, 200, 300);
         testGetBalance(4, 404, 0);
 
-        testTransfer(new TransferReqBean(3, 1, 100), 200, 1);
-        testTransfer(new TransferReqBean(3, 4, 100), 400, 2);
-        testTransfer(new TransferReqBean(4, 1, 100), 400, 3);
-        testTransfer(new TransferReqBean(3, 1, 1000), 400, 4);
-        testTransfer(new TransferReqBean(3, 1, -1000), 400, 5);
-        testTransfer(new TransferReqBean(1, 1, 100), 400, 6);
+        testTransfer(new TransferReq(3, 1, 100), 200, 1);
+        testTransfer(new TransferReq(3, 4, 100), 400, 2);
+        testTransfer(new TransferReq(4, 1, 100), 400, 3);
+        testTransfer(new TransferReq(3, 1, 1000), 400, 4);
+        testTransfer(new TransferReq(3, 1, -1000), 400, 5);
+        testTransfer(new TransferReq(1, 1, 100), 400, 6);
 
         testGetBalance(1, 200, 200);
         testGetBalance(2, 200, 200);
         testGetBalance(3, 200, 200);
 
-        testGetTransaction(1, 200, new TransferReqBean(3, 1, 100));
+        testGetTransaction(1, 200, new TransferReq(3, 1, 100));
         testGetTransaction(2, 404, null);
 
         int n = Runtime.getRuntime().availableProcessors();
         ExecutorService executor = Executors.newFixedThreadPool(n);
         class Task implements Runnable {
 
-            private TransferReqBean req;
+            private final TransferReq req;
 
-            Task(TransferReqBean req) {
+            Task(TransferReq req) {
                 this.req = req;
             }
 
+            @Override
             public void run() {
                 transfer(req);
             }
@@ -120,7 +121,7 @@ public class MainIT {
 
         for (int i = 0; i < 15; i++) {
             int j = i % 3;
-            executor.submit(new Task(new TransferReqBean(j + 1, (j + 1) % 3 + 1, i + 1)));            
+            executor.submit(new Task(new TransferReq(j + 1, (j + 1) % 3 + 1, i + 1)));            
         }
 
         executor.shutdown();
@@ -141,15 +142,15 @@ public class MainIT {
                 .get();
         assertEquals(httpStatus, response.getStatus());
         if (response.getStatus() == 200) {
-            BalanceBean ret = response.readEntity(BalanceBean.class);
-            assertEquals(balance, ret.getBalance());
+            User user = response.readEntity(User.class);
+            assertEquals(balance, user.getBalance());
         } else {
             System.out.println(response.readEntity(String.class));
         }
 
     }
 
-    private void transfer(TransferReqBean req) {
+    private void transfer(TransferReq req) {
         System.out.println("making transfer from " + req.getFrom()
                 + " to " + req.getTo() + ": amount " + req.getAmount());
 
@@ -161,7 +162,7 @@ public class MainIT {
         System.out.println(response.readEntity(String.class));
     }
 
-    private void testTransfer(TransferReqBean req, int httpStatus,
+    private void testTransfer(TransferReq req, int httpStatus,
             long transactionId) {
         System.out.println("testing transfer " + transactionId);
 
@@ -170,14 +171,14 @@ public class MainIT {
                 .post(Entity.entity(req, MediaType.APPLICATION_JSON_TYPE));
         assertEquals(httpStatus, response.getStatus());
         if (response.getStatus() == 200) {
-            TransactionIdBean ret = response.readEntity(TransactionIdBean.class);
+            TransferRes ret = response.readEntity(TransferRes.class);
             assertEquals(transactionId, ret.getTransactionId());
         } else {
             System.out.println(response.readEntity(String.class));
         }
     }
 
-    private void testGetTransaction(long transactionId, int httpStatus, TransferReqBean req) {
+    private void testGetTransaction(long transactionId, int httpStatus, TransferReq req) {
         System.out.println("testing transaction " + transactionId);
 
         WebTarget target = client.target("http://localhost:9997/api/transaction/"
@@ -186,9 +187,9 @@ public class MainIT {
                 .get();
         assertEquals(httpStatus, response.getStatus());
         if (response.getStatus() == 200) {
-            TransactionBean ret = response.readEntity(TransactionBean.class);
-            assertEquals(req.getFrom(), ret.getFrom());
-            assertEquals(req.getTo(), ret.getTo());
+            Transaction ret = response.readEntity(Transaction.class);
+            assertEquals(req.getFrom(), ret.getFromUser());
+            assertEquals(req.getTo(), ret.getToUser());
             assertEquals(req.getAmount(), ret.getAmount());
         } else {
             System.out.println(response.readEntity(String.class));

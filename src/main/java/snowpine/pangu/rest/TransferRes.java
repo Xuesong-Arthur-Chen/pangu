@@ -1,11 +1,11 @@
 package snowpine.pangu.rest;
 
-public class TransactionIdBean {	
+public class TransferRes {	
 
-	public TransactionIdBean() {
+	public TransferRes() {
 	}
 
-	public TransactionIdBean(long transactionId) {
+	public TransferRes(long transactionId) {
 		this.transactionId = transactionId;
 	}
 	
