@@ -13,7 +13,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Reader;
-import java.io.StringReader;
 import java.io.Writer;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -58,11 +57,10 @@ public class MainIT {
             st.executeUpdate("CREATE DATABASE testdb;");
 
         }
+        
         try (Connection conn = DriverManager.getConnection(Main.dbConnStr, Main.dbUser, Main.dbPass);
-                Reader schema_script = new InputStreamReader(
-                        Main.class.getResourceAsStream("/db_schema.sql"));
-                Reader test_data_script = new InputStreamReader(
-                        Main.class.getResourceAsStream("/db_test_data.sql"));) {
+                Reader schema_script = new InputStreamReader(MainIT.class.getResourceAsStream("/db_schema.sql"));
+                Reader test_data_script = new InputStreamReader(MainIT.class.getResourceAsStream("/db_test_data.sql"));) {
 
             ScriptRunner runner = new ScriptRunner(conn, false, true);
 
@@ -103,6 +101,8 @@ public class MainIT {
      */
     @AfterClass
     public static void tearDownAfterClass() throws Exception {
+        if(server == null) return;
+        
         System.out.println("\nshutting down REST API server...\n");
         Writer w = new OutputStreamWriter(server.getOutputStream());
         w.write("\n");
@@ -147,7 +147,7 @@ public class MainIT {
         testGetTransaction(1, 200, new TransferReq(3, 1, 100));
         testGetTransaction(2, 404, null);
 
-        int n = Runtime.getRuntime().availableProcessors();
+        int n = Runtime.getRuntime().availableProcessors() * 3;
         ExecutorService executor = Executors.newFixedThreadPool(n);
         class Task implements Runnable {
 
