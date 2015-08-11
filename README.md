@@ -1,6 +1,9 @@
 # pangu
 A simple JSON REST API server for money transfer among test user accounts
 
+Data integraity is no. 1 priority in financial data systems.
+This demo shows how to use relational database transaction and SQL query techniques to ensure data integrity, avoid dead lock and concurrent update conflict with little impact on performance.
+
 ## How to build
 You need:
 * Latest stable Oracle JDK 8
