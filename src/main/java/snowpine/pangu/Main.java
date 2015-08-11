@@ -2,11 +2,8 @@ package snowpine.pangu;
 
 import snowpine.pangu.rest.Api;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
 import java.net.URI;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 
 import javax.ws.rs.core.UriBuilder;
@@ -14,7 +11,6 @@ import javax.ws.rs.core.UriBuilder;
 import org.apache.commons.dbcp2.BasicDataSource;
 import org.glassfish.jersey.server.ResourceConfig;
 
-import com.ibatis.common.jdbc.ScriptRunner;
 import java.util.concurrent.ExecutionException;
 import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.jersey.grizzly2.httpserver.GrizzlyHttpServerFactory;
@@ -25,33 +21,13 @@ import snowpine.pangu.dao.UserDAOJdbcImpl;
 
 public class Main {
 
-    private static final String dbDriver = "org.hsqldb.jdbc.JDBCDriver";
-    private static final String dbConnStr = "jdbc:hsqldb:mem:testdb;hsqldb.tx=mvcc";
-
-    private static void setupTestDb() throws SQLException, IOException,
-            ClassNotFoundException {
-        Class.forName(dbDriver);
-        try (Connection conn = DriverManager.getConnection(dbConnStr);
-                Reader init_script = new InputStreamReader(
-                        Main.class.getResourceAsStream("/db_init.sql"));
-                Reader test_data_script = new InputStreamReader(
-                        Main.class.getResourceAsStream("/db_test_data.sql"));) {
-
-            ScriptRunner runner = new ScriptRunner(conn, false, true);
-
-            runner.runScript(init_script);
-            runner.runScript(test_data_script);
-
-        }
-    }
-
-    private static void shutdownTestDb() {
-        try {
-            DriverManager.getConnection(dbConnStr + ";shutdown=true");
-        } catch (SQLException sqle) {
-            DAOWrapperException.printSQLException(sqle);
-        }
-    }
+    //config info should be loaded from config file
+    public static final String dbDriver = "org.postgresql.Driver";
+    public static final String dbLocation = "jdbc:postgresql://localhost:5432/";
+    public static final String dbName = "testdb";
+    public static final String dbConnStr = dbLocation + dbName;
+    public static final String dbUser = "postgres";
+    public static final String dbPass = "";
 
     private static BasicDataSource setupDataSource() throws ClassNotFoundException {
 
@@ -59,6 +35,8 @@ public class Main {
 
         ds.setDriverClassName(dbDriver);
         ds.setUrl(dbConnStr);
+        ds.setUsername(dbUser);
+        ds.setPassword(dbPass);
 
         ds.setDefaultTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
         ds.setDefaultAutoCommit(true);
@@ -102,7 +80,6 @@ public class Main {
         try {
             System.out.println("Starting...\n");
 
-            setupTestDb();
             dataSource = setupDataSource();
             DAOObjs.userDAO = new UserDAOJdbcImpl(dataSource);
             DAOObjs.transactionDAO = new TransactionDAOJdbcImpl(dataSource, DAOObjs.userDAO);
@@ -112,8 +89,6 @@ public class Main {
 
             System.in.read();
 
-        } catch (SQLException sqle) {
-            DAOWrapperException.printSQLException(sqle);
         } catch (IOException | ClassNotFoundException e) {
             System.err.println(e);
         } finally {
@@ -121,7 +96,6 @@ public class Main {
 
             shutdownWebServer(server);
             closeDataSource(dataSource);
-            shutdownTestDb();
 
             System.out.println("\nshut down successfully\n");
         }

@@ -3,13 +3,22 @@
  */
 package snowpine.pangu;
 
+import com.ibatis.common.jdbc.ScriptRunner;
 import snowpine.pangu.rest.TransferReq;
 import snowpine.pangu.rest.TransferRes;
 import static org.junit.Assert.assertEquals;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.io.Reader;
+import java.io.StringReader;
 import java.io.Writer;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -26,6 +35,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import snowpine.pangu.dao.DAOWrapperException;
 import snowpine.pangu.dao.Transaction;
 import snowpine.pangu.dao.User;
 
@@ -38,11 +48,45 @@ public class MainIT {
     private static final Client client = ClientBuilder.newClient();
     private static Process server;
 
+    private static void setupTestDb() throws SQLException, IOException,
+            ClassNotFoundException {
+        Class.forName(Main.dbDriver);
+        try (Connection conn = DriverManager.getConnection(Main.dbLocation, Main.dbUser, Main.dbPass);
+                Statement st = conn.createStatement();) {
+            
+            st.executeUpdate("DROP DATABASE IF EXISTS testdb;");
+            st.executeUpdate("CREATE DATABASE testdb;");
+
+        }
+        try (Connection conn = DriverManager.getConnection(Main.dbConnStr, Main.dbUser, Main.dbPass);
+                Reader schema_script = new InputStreamReader(
+                        Main.class.getResourceAsStream("/db_schema.sql"));
+                Reader test_data_script = new InputStreamReader(
+                        Main.class.getResourceAsStream("/db_test_data.sql"));) {
+
+            ScriptRunner runner = new ScriptRunner(conn, false, true);
+
+            runner.runScript(schema_script);
+            runner.runScript(test_data_script);
+
+        }
+    }
+    
     /**
      * @throws java.lang.Exception
      */
     @BeforeClass
     public static void setUpBeforeClass() throws Exception {
+        System.out.println("setup test database...\n");
+        try {
+            setupTestDb();
+        } catch(SQLException sqle) {
+            DAOWrapperException.printSQLException(sqle);
+            throw sqle;
+        }
+        
+        System.out.println("done\n");
+        
         System.out.println("starting REST API server...\n");
         ProcessBuilder pb = new ProcessBuilder("java", "-jar",
                 "./target/pangu-1.0.0.jar");
