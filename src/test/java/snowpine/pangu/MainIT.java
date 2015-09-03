@@ -42,7 +42,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import snowpine.pangu.dao.DAOWrapperException;
 import snowpine.pangu.dao.Transaction;
-import snowpine.pangu.dao.User;
+import snowpine.pangu.rest.BalanceRes;
 import snowpine.pangu.rest.LoginReq;
 
 /**
@@ -166,7 +166,7 @@ public class MainIT {
         testGetBalance(1, 200, 100);
         testGetBalance(2, 200, 200);
         testGetBalance(3, 200, 300);
-        testGetBalance(4, 404, 0);
+        testGetBalance(4, 400, 0);
 
         testTransfer(new TransferReq(3, 1, 100), 200, 1);
         testTransfer(new TransferReq(3, 4, 100), 400, 2);
@@ -221,8 +221,8 @@ public class MainIT {
                 .get();
         assertEquals(httpStatus, response.getStatus());
         if (response.getStatus() == 200) {
-            User user = response.readEntity(User.class);
-            assertEquals(balance, user.getBalance());
+            BalanceRes ret = response.readEntity(BalanceRes.class);
+            assertEquals(balance, ret.getBalance());
         } else {
             System.out.println(response.readEntity(String.class));
         }

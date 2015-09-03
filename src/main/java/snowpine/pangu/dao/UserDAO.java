@@ -12,4 +12,5 @@ package snowpine.pangu.dao;
 public interface UserDAO {
     public User findById(long id) throws DAOWrapperException;
     public User findByEmail(String email) throws DAOWrapperException;
+    public long getBalanceById(long id) throws DAODataException, DAOWrapperException;
 }

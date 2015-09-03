@@ -21,7 +21,6 @@ import snowpine.pangu.dao.DAODataException;
 import snowpine.pangu.dao.DAOObjs;
 import snowpine.pangu.dao.DAOWrapperException;
 import snowpine.pangu.dao.Transaction;
-import snowpine.pangu.dao.User;
 
 @Singleton
 @Path("api")
@@ -36,24 +35,22 @@ public class Api {
 
     @GET
     @Path("balance/{userid}")
-    public User balance(@PathParam("userid") long userId) {
+    public BalanceRes balance(@PathParam("userid") long userId) {
         // check req
         if (userId <= 0) {
             throw new BadRequestException(errorResponse(400, "invalid user id"));
         }
 
-        User user;
+        long balance;
         try {
-            user = DAOObjs.userDAO.findById(userId);
+            balance = DAOObjs.userDAO.getBalanceById(userId);
+        } catch(DAODataException daode) {
+            throw new BadRequestException(errorResponse(400, daode.getMessage()));
         } catch (DAOWrapperException daoe) {
             throw new InternalServerErrorException();
         }
 
-        if (user == null) {
-            throw new NotFoundException(errorResponse(404, "user not found"));
-        }
-
-        return user;
+        return new BalanceRes(balance);
     }
 
     @GET
