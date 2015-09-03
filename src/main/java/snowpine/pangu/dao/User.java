@@ -12,6 +12,35 @@ package snowpine.pangu.dao;
 public class User {
     private long id;
     private long balance;
+    private String email;
+    private String salt;
+    private String passhash;
+
+    public String getPasshash() {
+        return passhash;
+    }
+
+    public void setPasshash(String passhash) {
+        this.passhash = passhash;
+    }
+
+
+    public String getSalt() {
+        return salt;
+    }
+
+    public void setSalt(String salt) {
+        this.salt = salt;
+    }
+
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
 
     /**
      * @return the id

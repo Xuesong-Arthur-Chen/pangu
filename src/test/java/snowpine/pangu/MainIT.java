@@ -14,13 +14,19 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.Writer;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.Base64;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
@@ -37,6 +43,7 @@ import org.junit.Test;
 import snowpine.pangu.dao.DAOWrapperException;
 import snowpine.pangu.dao.Transaction;
 import snowpine.pangu.dao.User;
+import snowpine.pangu.rest.LoginReq;
 
 /**
  * @author xuesong
@@ -48,28 +55,51 @@ public class MainIT {
     private static Process server;
 
     private static void setupTestDb() throws SQLException, IOException,
-            ClassNotFoundException {
+            ClassNotFoundException, NoSuchAlgorithmException, InvalidKeySpecException {
         Class.forName(Main.dbDriver);
         try (Connection conn = DriverManager.getConnection(Main.dbLocation, Main.dbUser, Main.dbPass);
                 Statement st = conn.createStatement();) {
-            
+
             st.executeUpdate("DROP DATABASE IF EXISTS testdb;");
             st.executeUpdate("CREATE DATABASE testdb;");
 
         }
-        
+
         try (Connection conn = DriverManager.getConnection(Main.dbConnStr, Main.dbUser, Main.dbPass);
                 Reader schema_script = new InputStreamReader(MainIT.class.getResourceAsStream("/db_schema.sql"));
-                Reader test_data_script = new InputStreamReader(MainIT.class.getResourceAsStream("/db_test_data.sql"));) {
+                PreparedStatement st = conn.prepareStatement("INSERT INTO users (email, salt, passhash, balance) VALUES (?, ?, ?, ?);");) {
 
             ScriptRunner runner = new ScriptRunner(conn, false, true);
 
             runner.runScript(schema_script);
-            runner.runScript(test_data_script);
 
+            byte[] salt = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+            PBEKeySpec ks = new PBEKeySpec("password".toCharArray(), salt, 1000, 16);
+            SecretKeyFactory kf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+            byte[] passhash = kf.generateSecret(ks).getEncoded();
+
+            Base64.Encoder enc = Base64.getEncoder();
+            
+            st.setString(1, "user1@email.com");
+            st.setString(2, enc.encodeToString(salt));
+            st.setString(3, enc.encodeToString(passhash));
+            st.setLong(4, 100);
+            st.executeUpdate();
+
+            st.setString(1, "user2@email.com");
+            st.setString(2, enc.encodeToString(salt));
+            st.setString(3, enc.encodeToString(passhash));
+            st.setLong(4, 200);
+            st.executeUpdate();
+
+            st.setString(1, "user3@email.com");
+            st.setString(2, enc.encodeToString(salt));
+            st.setString(3, enc.encodeToString(passhash));
+            st.setLong(4, 300);
+            st.executeUpdate();
         }
     }
-    
+
     /**
      * @throws java.lang.Exception
      */
@@ -78,13 +108,13 @@ public class MainIT {
         System.out.println("setup test database...\n");
         try {
             setupTestDb();
-        } catch(SQLException sqle) {
+        } catch (SQLException sqle) {
             DAOWrapperException.printSQLException(sqle);
             throw sqle;
         }
-        
+
         System.out.println("done\n");
-        
+
         System.out.println("starting REST API server...\n");
         ProcessBuilder pb = new ProcessBuilder("java", "-jar",
                 "./target/pangu-1.0.0.jar");
@@ -101,8 +131,10 @@ public class MainIT {
      */
     @AfterClass
     public static void tearDownAfterClass() throws Exception {
-        if(server == null) return;
-        
+        if (server == null) {
+            return;
+        }
+
         System.out.println("\nshutting down REST API server...\n");
         Writer w = new OutputStreamWriter(server.getOutputStream());
         w.write("\n");
@@ -128,6 +160,9 @@ public class MainIT {
     @Test
     public void test() throws Exception {
 
+        testLogin(new LoginReq("user1@email.com", "password"), 200);
+        testLogin(new LoginReq("user1@email.com", "password1"), 400);
+        
         testGetBalance(1, 200, 100);
         testGetBalance(2, 200, 200);
         testGetBalance(3, 200, 300);
@@ -165,7 +200,7 @@ public class MainIT {
 
         for (int i = 0; i < 15; i++) {
             int j = i % 3;
-            executor.submit(new Task(new TransferReq(j + 1, (j + 1) % 3 + 1, i + 1)));            
+            executor.submit(new Task(new TransferReq(j + 1, (j + 1) % 3 + 1, i + 1)));
         }
 
         executor.shutdown();
@@ -238,6 +273,18 @@ public class MainIT {
         } else {
             System.out.println(response.readEntity(String.class));
         }
+    }
+
+    private void testLogin(LoginReq req, int httpStatus) {
+        System.out.println("testing login " + req.getEmail());
+
+        WebTarget target = client.target("http://localhost:9997/login");
+        Response response = target.request(MediaType.APPLICATION_JSON_TYPE)
+                .post(Entity.entity(req, MediaType.APPLICATION_JSON_TYPE));
+        assertEquals(httpStatus, response.getStatus());
+
+        System.out.println(response.readEntity(String.class));
+
     }
 
 }

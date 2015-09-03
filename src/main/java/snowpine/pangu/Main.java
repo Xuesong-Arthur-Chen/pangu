@@ -19,6 +19,7 @@ import snowpine.pangu.dao.DAOWrapperException;
 import snowpine.pangu.dao.TransactionDAOJdbcImpl;
 import snowpine.pangu.dao.UserDAOJdbcImpl;
 import snowpine.pangu.rest.CORSFilter;
+import snowpine.pangu.rest.Login;
 
 public class Main {
 
@@ -59,7 +60,7 @@ public class Main {
     private static HttpServer startWebServer() {
         URI baseUri = UriBuilder.fromUri("http://localhost/").port(9997)
                 .build();
-        ResourceConfig config = new ResourceConfig(CORSFilter.class, Api.class);
+        ResourceConfig config = new ResourceConfig(CORSFilter.class, Login.class, Api.class);
         return GrizzlyHttpServerFactory.createHttpServer(baseUri, config);
     }
 

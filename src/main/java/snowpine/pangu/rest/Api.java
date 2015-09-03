@@ -29,7 +29,7 @@ import snowpine.pangu.dao.User;
 @Consumes(MediaType.APPLICATION_JSON)
 public class Api {
 
-    private Response errorResponse(int httpCode, String msg) {
+    public static Response errorResponse(int httpCode, String msg) {
         return Response.status(httpCode).entity("{\"error\": \"" + msg + "\"}")
                 .type(MediaType.APPLICATION_JSON).build();
     }
