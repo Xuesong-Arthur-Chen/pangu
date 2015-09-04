@@ -30,10 +30,14 @@ import javax.crypto.spec.PBEKeySpec;
 
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.ClientRequestContext;
+import javax.ws.rs.client.ClientRequestFilter;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.WebTarget;
+import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import org.glassfish.jersey.client.ClientConfig;
 
 import org.junit.After;
 import org.junit.AfterClass;
@@ -44,6 +48,7 @@ import snowpine.pangu.dao.DAOWrapperException;
 import snowpine.pangu.dao.Transaction;
 import snowpine.pangu.rest.BalanceRes;
 import snowpine.pangu.rest.LoginReq;
+import snowpine.pangu.rest.LoginRes;
 
 /**
  * @author xuesong
@@ -51,7 +56,21 @@ import snowpine.pangu.rest.LoginReq;
  */
 public class MainIT {
 
-    private static final Client client = ClientBuilder.newClient();
+    class AuthRequestFilter implements ClientRequestFilter {
+
+        private final String token;
+
+        public AuthRequestFilter(String token) {
+            this.token = token;
+        }
+
+        @Override
+        public void filter(ClientRequestContext requestContext) throws IOException {
+            requestContext.getHeaders().add(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+        }
+    }
+
+    private static final Client defaultClient = ClientBuilder.newClient();
     private static Process server;
 
     private static void setupTestDb() throws SQLException, IOException,
@@ -67,7 +86,7 @@ public class MainIT {
 
         try (Connection conn = DriverManager.getConnection(Main.dbConnStr, Main.dbUser, Main.dbPass);
                 Reader schema_script = new InputStreamReader(MainIT.class.getResourceAsStream("/db_schema.sql"));
-                PreparedStatement st = conn.prepareStatement("INSERT INTO users (email, salt, passhash, balance) VALUES (?, ?, ?, ?);");) {
+                PreparedStatement st = conn.prepareStatement("INSERT INTO users (salt, passhash, balance) VALUES (?, ?, ?);");) {
 
             ScriptRunner runner = new ScriptRunner(conn, false, true);
 
@@ -79,23 +98,20 @@ public class MainIT {
             byte[] passhash = kf.generateSecret(ks).getEncoded();
 
             Base64.Encoder enc = Base64.getEncoder();
-            
-            st.setString(1, "user1@email.com");
-            st.setString(2, enc.encodeToString(salt));
-            st.setString(3, enc.encodeToString(passhash));
-            st.setLong(4, 100);
+
+            st.setString(1, enc.encodeToString(salt));
+            st.setString(2, enc.encodeToString(passhash));
+            st.setLong(3, 100);
             st.executeUpdate();
 
-            st.setString(1, "user2@email.com");
-            st.setString(2, enc.encodeToString(salt));
-            st.setString(3, enc.encodeToString(passhash));
-            st.setLong(4, 200);
+            st.setString(1, enc.encodeToString(salt));
+            st.setString(2, enc.encodeToString(passhash));
+            st.setLong(3, 200);
             st.executeUpdate();
 
-            st.setString(1, "user3@email.com");
-            st.setString(2, enc.encodeToString(salt));
-            st.setString(3, enc.encodeToString(passhash));
-            st.setLong(4, 300);
+            st.setString(1, enc.encodeToString(salt));
+            st.setString(2, enc.encodeToString(passhash));
+            st.setLong(3, 300);
             st.executeUpdate();
         }
     }
@@ -160,62 +176,78 @@ public class MainIT {
     @Test
     public void test() throws Exception {
 
-        testLogin(new LoginReq("user1@email.com", "password"), 200);
-        testLogin(new LoginReq("user1@email.com", "password1"), 400);
+        testLogin(new LoginReq(1, "password"), 200);
+        testLogin(new LoginReq(2, "password"), 200);
+        testLogin(new LoginReq(3, "password"), 200);
+        testLogin(new LoginReq(1, "password1"), 400);
         
-        testGetBalance(1, 200, 100);
-        testGetBalance(2, 200, 200);
-        testGetBalance(3, 200, 300);
-        testGetBalance(4, 400, 0);
+        String t1 = login(new LoginReq(1, "password"));
+        final Client c1 = ClientBuilder.newClient(new ClientConfig().register(new AuthRequestFilter(t1)));
 
-        testTransfer(new TransferReq(3, 1, 100), 200, 1);
-        testTransfer(new TransferReq(3, 4, 100), 400, 2);
-        testTransfer(new TransferReq(4, 1, 100), 400, 3);
-        testTransfer(new TransferReq(3, 1, 1000), 400, 4);
-        testTransfer(new TransferReq(3, 1, -1000), 400, 5);
-        testTransfer(new TransferReq(1, 1, 100), 400, 6);
+        String t2 = login(new LoginReq(2, "password"));
+        final Client c2 = ClientBuilder.newClient(new ClientConfig().register(new AuthRequestFilter(t2)));
+        
+        String t3 = login(new LoginReq(3, "password"));
+        final Client c3 = ClientBuilder.newClient(new ClientConfig().register(new AuthRequestFilter(t3)));
 
-        testGetBalance(1, 200, 200);
-        testGetBalance(2, 200, 200);
-        testGetBalance(3, 200, 200);
+        testGetBalance(c1, 1, 200, 100);
+        testGetBalance(c2, 2, 200, 200);
+        testGetBalance(c3, 3, 200, 300);
 
-        testGetTransaction(1, 200, new TransferReq(3, 1, 100));
-        testGetTransaction(2, 404, null);
+        testTransfer(c3, new TransferReq(3, 1, 100), 200, 1);
+        testTransfer(c3, new TransferReq(3, 4, 100), 400, 2);
+        testTransfer(c1, new TransferReq(4, 1, 100), 403, 3);
+        testTransfer(c3, new TransferReq(3, 1, 1000), 400, 4);
+        testTransfer(c3, new TransferReq(3, 1, -1000), 400, 5);
+        testTransfer(c1, new TransferReq(1, 1, 100), 400, 6);
+
+        testGetBalance(c1, 1, 200, 200);
+        testGetBalance(c2, 2, 200, 200);
+        testGetBalance(c3, 3, 200, 200);
+
+        testGetTransaction(c3, 1, 200, new TransferReq(3, 1, 100));
+        testGetTransaction(c3, 2, 404, null);
 
         int n = Runtime.getRuntime().availableProcessors() * 3;
         ExecutorService executor = Executors.newFixedThreadPool(n);
         class Task implements Runnable {
 
             private final TransferReq req;
+            private final Client c;
 
-            Task(TransferReq req) {
+            Task(Client c, TransferReq req) {
+                this.c = c;
                 this.req = req;
             }
 
             @Override
             public void run() {
-                transfer(req);
+                transfer(c, req);
             }
         }
 
         for (int i = 0; i < 15; i++) {
             int j = i % 3;
-            executor.submit(new Task(new TransferReq(j + 1, (j + 1) % 3 + 1, i + 1)));
+            Client c;
+            if(j == 0) c = c1;
+            else if(j == 1) c = c2;
+            else c = c3;
+            executor.submit(new Task(c, new TransferReq(j + 1, (j + 1) % 3 + 1, i + 1)));
         }
 
         executor.shutdown();
         executor.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
 
-        testGetBalance(1, 200, 210);
-        testGetBalance(2, 200, 195);
-        testGetBalance(3, 200, 195);
+        testGetBalance(c1, 1, 200, 210);
+        testGetBalance(c2, 2, 200, 195);
+        testGetBalance(c3, 3, 200, 195);
 
     }
 
-    private void testGetBalance(long userId, int httpStatus, long balance) {
+    private void testGetBalance(Client c, long userId, int httpStatus, long balance) {
         System.out.println("testing user " + userId + " balance");
 
-        WebTarget target = client.target("http://localhost:9997/api/balance/"
+        WebTarget target = c.target("http://localhost:9997/api/balance/"
                 + userId);
         Response response = target.request(MediaType.APPLICATION_JSON_TYPE)
                 .get();
@@ -229,11 +261,11 @@ public class MainIT {
 
     }
 
-    private void transfer(TransferReq req) {
+    private void transfer(Client c, TransferReq req) {
         System.out.println("making transfer from " + req.getFrom()
                 + " to " + req.getTo() + ": amount " + req.getAmount());
 
-        WebTarget target = client.target("http://localhost:9997/api/transfer");
+        WebTarget target = c.target("http://localhost:9997/api/transfer");
         Response response = target.request(MediaType.APPLICATION_JSON_TYPE)
                 .post(Entity.entity(req, MediaType.APPLICATION_JSON_TYPE));
 
@@ -241,11 +273,11 @@ public class MainIT {
         System.out.println(response.readEntity(String.class));
     }
 
-    private void testTransfer(TransferReq req, int httpStatus,
+    private void testTransfer(Client c, TransferReq req, int httpStatus,
             long transactionId) {
         System.out.println("testing transfer " + transactionId);
 
-        WebTarget target = client.target("http://localhost:9997/api/transfer");
+        WebTarget target = c.target("http://localhost:9997/api/transfer");
         Response response = target.request(MediaType.APPLICATION_JSON_TYPE)
                 .post(Entity.entity(req, MediaType.APPLICATION_JSON_TYPE));
         assertEquals(httpStatus, response.getStatus());
@@ -257,10 +289,10 @@ public class MainIT {
         }
     }
 
-    private void testGetTransaction(long transactionId, int httpStatus, TransferReq req) {
+    private void testGetTransaction(Client c, long transactionId, int httpStatus, TransferReq req) {
         System.out.println("testing transaction " + transactionId);
 
-        WebTarget target = client.target("http://localhost:9997/api/transaction/"
+        WebTarget target = c.target("http://localhost:9997/api/transaction/"
                 + transactionId);
         Response response = target.request(MediaType.APPLICATION_JSON_TYPE)
                 .get();
@@ -274,11 +306,20 @@ public class MainIT {
             System.out.println(response.readEntity(String.class));
         }
     }
+    
+    private String login(LoginReq req) {
+        
+        WebTarget target = defaultClient.target("http://localhost:9997/login");
+        Response response = target.request(MediaType.APPLICATION_JSON_TYPE)
+                .post(Entity.entity(req, MediaType.APPLICATION_JSON_TYPE));
+        
+        return response.readEntity(LoginRes.class).getAccess_token();
+    }
 
     private void testLogin(LoginReq req, int httpStatus) {
-        System.out.println("testing login " + req.getEmail());
+        System.out.println("testing login user: " + req.getUserId());
 
-        WebTarget target = client.target("http://localhost:9997/login");
+        WebTarget target = defaultClient.target("http://localhost:9997/login");
         Response response = target.request(MediaType.APPLICATION_JSON_TYPE)
                 .post(Entity.entity(req, MediaType.APPLICATION_JSON_TYPE));
         assertEquals(httpStatus, response.getStatus());

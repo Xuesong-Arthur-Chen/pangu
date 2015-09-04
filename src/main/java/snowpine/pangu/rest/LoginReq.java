@@ -11,14 +11,14 @@ package snowpine.pangu.rest;
  */
 public class LoginReq {
     
-    private String email;
+    private long userId;
     private String password;
 
     public LoginReq() {
     }   
 
-    public LoginReq(String email, String password) {
-        this.email = email;
+    public LoginReq(long userId, String password) {
+        this.userId = userId;
         this.password = password;
     }   
 
@@ -30,12 +30,12 @@ public class LoginReq {
         this.password = password;
     }
 
-    public String getEmail() {
-        return email;
+    public long getUserId() {
+        return userId;
     }
 
-    public void setEmail(String email) {
-        this.email = email;
+    public void setUserId(long userId) {
+        this.userId = userId;
     }
 
 }

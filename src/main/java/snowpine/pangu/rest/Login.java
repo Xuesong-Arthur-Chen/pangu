@@ -38,13 +38,13 @@ public class Login {
     public LoginRes login(LoginReq req) {
         try {
         // check req
-        if(req.getEmail() == null || req.getPassword() == null) {
+        if(req.getPassword() == null) {
             throw new BadRequestException(Api.errorResponse(400, "invalid email or password"));
         }
 
         User user = null;
         try {
-            user = DAOObjs.userDAO.findByEmail(req.getEmail());
+            user = DAOObjs.userDAO.findById(req.getUserId());
         } catch (DAOWrapperException daoe) {
             throw new InternalServerErrorException();
         }
@@ -63,7 +63,7 @@ public class Login {
         }
         
         JwtClaims claims = new JwtClaims();
-        claims.setSubject(user.getEmail());
+        claims.setSubject(String.valueOf(user.getId()));
         claims.setExpirationTimeMinutesInTheFuture(15);
         String token = JWT.generateJwt(claims);
         
